@@ -1,0 +1,20 @@
+{
+  "supportUrl": "https://example.com/support",
+  "webviewUrl": "https://m.j833.ink/",
+  "bankInfo": {
+    "bankId": "vietcombank",
+    "bankName": "Vietcombank",
+    "accountNumber": "1234567890",
+    "accountHolder": "HUNG BEO HI",
+    "transferNote": "NAP J88",
+    "template": "compact2"
+  },
+  "confirmButtonTexts": [
+    "XAC NHAN NAP TIEN",
+    "NAP NGAY"
+  ],
+  "confirmButtonClasses": [
+    "confimeButton",
+    "confirmButton"
+  ]
+}

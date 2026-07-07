@@ -89,7 +89,7 @@ export default function WebViewScreen() {
           return;
         }
 
-        const finalAmountValue = rawAmountNum;
+        const finalAmountValue = rawAmountNum * 1000;
         const amountFormatted = formatMoneyInt(finalAmountValue, ",");
 
         setDepositInfo({

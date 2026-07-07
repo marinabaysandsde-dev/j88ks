@@ -9,10 +9,17 @@
     "transferNote": "NAP J88",
     "template": "compact2"
   },
+
+  "_note_confirmButtonTexts": "Luôn viết KHÔNG DẤU + VIẾT HOA. App tự nhận mọi biến thể có dấu/thường/hoa.",
   "confirmButtonTexts": [
     "XAC NHAN NAP TIEN",
-    "NAP NGAY"
+    "NAP TIEN NGAY",
+    "NAP NGAY",
+    "XAC NHAN",
+    "DONG Y NAP TIEN"
   ],
+
+  "_note_confirmButtonClasses": "CSS class của nút trên trang web (inspect element để lấy).",
   "confirmButtonClasses": [
     "confimeButton",
     "confirmButton"

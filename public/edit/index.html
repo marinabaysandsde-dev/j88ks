@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Config Editor — J88</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; background: #f0f2f5; color: #1f2328; min-height: 100vh; padding: 24px 16px 48px; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #57606a; font-size: 13px; margin-bottom: 24px; }
+
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+  .card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #57606a; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #e5e7eb; }
+
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #374151; }
+  .hint { font-size: 11px; color: #57606a; margin-bottom: 6px; }
+  input[type=text] { width: 100%; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; transition: border-color .15s; background: #fff; }
+  input[type=text]:focus { border-color: #3b82d4; box-shadow: 0 0 0 3px rgba(59,130,212,.12); }
+  .field { margin-bottom: 14px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* tag list */
+  .tag-wrap { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px 4px; background: #fff; min-height: 44px; }
+  .tag-wrap:focus-within { border-color: #3b82d4; box-shadow: 0 0 0 3px rgba(59,130,212,.12); }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .tag { display: inline-flex; align-items: center; gap: 5px; background: #e8f0fe; color: #1a56db; border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 600; }
+  .tag-cls { display: inline-flex; align-items: center; gap: 5px; background: #fef3c7; color: #92400e; border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 600; }
+  .tag button, .tag-cls button { background: none; border: none; cursor: pointer; color: inherit; font-size: 14px; line-height: 1; padding: 0; opacity: .6; }
+  .tag button:hover, .tag-cls button:hover { opacity: 1; }
+  .tag-input-row { display: flex; gap: 6px; }
+  .tag-input-row input { flex: 1; border: none; outline: none; font-size: 13px; padding: 2px 4px; background: transparent; }
+  .tag-add-btn { background: #3b82d4; color: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .tag-add-btn:hover { background: #2563eb; }
+
+  /* template select */
+  .select-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sel-btn { border: 1px solid #d1d5db; background: #f9fafb; border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; transition: all .15s; }
+  .sel-btn.active { border-color: #3b82d4; background: #e8f0fe; color: #1a56db; font-weight: 700; }
+
+  /* actions */
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .btn-primary { background: #1a56db; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .btn-primary:hover { background: #1e40af; }
+  .btn-secondary { background: #fff; color: #374151; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 18px; font-size: 14px; cursor: pointer; }
+  .btn-secondary:hover { background: #f3f4f6; }
+  .btn-copy { background: #fff; color: #374151; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 18px; font-size: 14px; cursor: pointer; }
+  .btn-copy:hover { background: #f3f4f6; }
+
+  /* output */
+  .output-wrap { position: relative; }
+  textarea.json-out { width: 100%; height: 280px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; resize: vertical; background: #f8fafc; outline: none; line-height: 1.6; }
+  textarea.json-out:focus { border-color: #3b82d4; }
+
+  .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: #1a56db; color: #fff; padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 999; }
+  .toast.show { opacity: 1; }
+
+  .badge { display: inline-block; background: #dcfce7; color: #166534; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+  .badge-warn { background: #fef9c3; color: #854d0e; }
+
+  .normalize-preview { font-size: 11px; color: #57606a; margin-top: 3px; }
+  .normalize-preview span { font-weight: 700; color: #1a56db; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚙️ Config Editor — J88</h1>
+  <p class="subtitle">Chỉnh sửa cấu hình app. Sau khi xong nhấn <b>Tạo JSON</b> rồi copy lên server.</p>
+
+  <!-- URLs -->
+  <div class="card">
+    <div class="card-title">🔗 URLs</div>
+    <div class="field">
+      <label>WebView URL <span class="badge">Trang web chính</span></label>
+      <input type="text" id="webviewUrl" placeholder="https://m.j833.ink/">
+    </div>
+    <div class="field">
+      <label>Support URL <span class="badge">Link hỗ trợ / chat</span></label>
+      <input type="text" id="supportUrl" placeholder="https://t.me/...">
+    </div>
+  </div>
+
+  <!-- Bank Info -->
+  <div class="card">
+    <div class="card-title">🏦 Thông tin ngân hàng</div>
+    <div class="row2">
+      <div class="field">
+        <label>Bank ID <span class="badge">VietQR</span></label>
+        <div class="hint">Mã ngân hàng theo VietQR (vd: vietcombank, mbbank, techcombank)</div>
+        <input type="text" id="bankId" placeholder="vietcombank">
+      </div>
+      <div class="field">
+        <label>Bank Name</label>
+        <input type="text" id="bankName" placeholder="Vietcombank">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Số tài khoản</label>
+        <input type="text" id="accountNumber" placeholder="1234567890">
+      </div>
+      <div class="field">
+        <label>Chủ tài khoản</label>
+        <input type="text" id="accountHolder" placeholder="NGUYEN VAN A">
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Nội dung chuyển khoản</label>
+        <input type="text" id="transferNote" placeholder="NAP J88">
+      </div>
+      <div class="field">
+        <label>Template QR <span class="badge">VietQR</span></label>
+        <div class="hint">Kiểu hiển thị mã QR</div>
+        <div class="select-group" id="templateGroup">
+          <button class="sel-btn active" data-val="compact2">compact2</button>
+          <button class="sel-btn" data-val="compact">compact</button>
+          <button class="sel-btn" data-val="qr_only">qr_only</button>
+          <button class="sel-btn" data-val="print">print</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Button Texts -->
+  <div class="card">
+    <div class="card-title">🖱️ Text nút xác nhận <span class="badge-warn badge">Không dấu · Viết hoa</span></div>
+    <div class="hint" style="margin-bottom:10px">App tự nhận mọi biến thể có dấu. Chỉ cần nhập dạng KHÔNG DẤU VIẾT HOA.<br>Vd: <b>"Xác Nhận Nạp Tiền"</b> → nhập <b>XAC NHAN NAP TIEN</b></div>
+    <div class="tag-wrap" id="btnTextsWrap">
+      <div class="tags" id="btnTextsTags"></div>
+      <div class="tag-input-row">
+        <input type="text" id="btnTextInput" placeholder='Nhập text nút rồi nhấn Enter hoặc "Thêm"' autocomplete="off">
+        <button class="tag-add-btn" onclick="addBtnText()">+ Thêm</button>
+      </div>
+    </div>
+    <div class="normalize-preview" id="normalizePreview"></div>
+  </div>
+
+  <!-- Confirm Button Classes -->
+  <div class="card">
+    <div class="card-title">🎨 CSS Class nút xác nhận</div>
+    <div class="hint" style="margin-bottom:10px">Dùng Inspect Element trên Chrome để lấy class của nút. Vd: <b>confirmButton</b>, <b>btn-deposit</b></div>
+    <div class="tag-wrap" id="btnClassesWrap">
+      <div class="tags" id="btnClassesTags"></div>
+      <div class="tag-input-row">
+        <input type="text" id="btnClassInput" placeholder='Nhập class CSS rồi nhấn Enter hoặc "Thêm"' autocomplete="off">
+        <button class="tag-add-btn" onclick="addBtnClass()">+ Thêm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="card">
+    <div class="card-title">📋 Xuất JSON</div>
+    <div class="actions" style="margin-bottom:14px">
+      <button class="btn-primary" onclick="generateJSON()">⚡ Tạo JSON</button>
+      <button class="btn-copy" onclick="copyJSON()">📋 Copy</button>
+      <button class="btn-secondary" onclick="loadDefault()">↺ Reset về mặc định</button>
+    </div>
+    <div class="output-wrap">
+      <textarea class="json-out" id="jsonOut" readonly placeholder="Nhấn 'Tạo JSON' để xuất..."></textarea>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:#57606a">
+      Upload file này lên: <b>https://goldvninvest.online/edit/config.json</b>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+var btnTexts   = [];
+var btnClasses = [];
+var template   = "compact2";
+
+// ── Default data ───────────────────────────────────────────────────────────────
+var DEFAULT = {
+  supportUrl: "https://example.com/support",
+  webviewUrl: "https://m.j833.ink/",
+  bankInfo: {
+    bankId: "vietcombank",
+    bankName: "Vietcombank",
+    accountNumber: "1234567890",
+    accountHolder: "HUNG BEO HI",
+    transferNote: "NAP J88",
+    template: "compact2"
+  },
+  confirmButtonTexts: ["XAC NHAN NAP TIEN","NAP TIEN NGAY","NAP NGAY","XAC NHAN","DONG Y NAP TIEN"],
+  confirmButtonClasses: ["confimeButton","confirmButton"]
+};
+
+// ── normalizeText (giống app) ──────────────────────────────────────────────────
+function normalizeText(text) {
+  return (text || "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// ── Render tags ────────────────────────────────────────────────────────────────
+function renderBtnTexts() {
+  var el = document.getElementById("btnTextsTags");
+  el.innerHTML = btnTexts.map(function(t, i) {
+    return '<span class="tag">' + escHtml(t) +
+      '<button onclick="removeBtnText(' + i + ')">×</button></span>';
+  }).join("");
+}
+
+function renderBtnClasses() {
+  var el = document.getElementById("btnClassesTags");
+  el.innerHTML = btnClasses.map(function(t, i) {
+    return '<span class="tag-cls">' + escHtml(t) +
+      '<button onclick="removeBtnClass(' + i + ')">×</button></span>';
+  }).join("");
+}
+
+// ── Add / Remove ───────────────────────────────────────────────────────────────
+function addBtnText() {
+  var inp = document.getElementById("btnTextInput");
+  var val = normalizeText(inp.value);
+  if (!val) return;
+  if (btnTexts.indexOf(val) === -1) { btnTexts.push(val); renderBtnTexts(); }
+  inp.value = "";
+  document.getElementById("normalizePreview").innerHTML = "";
+  inp.focus();
+}
+
+function removeBtnText(i) { btnTexts.splice(i, 1); renderBtnTexts(); }
+
+function addBtnClass() {
+  var inp = document.getElementById("btnClassInput");
+  var val = inp.value.trim();
+  if (!val) return;
+  if (btnClasses.indexOf(val) === -1) { btnClasses.push(val); renderBtnClasses(); }
+  inp.value = "";
+  inp.focus();
+}
+
+function removeBtnClass(i) { btnClasses.splice(i, 1); renderBtnClasses(); }
+
+// ── Template select ────────────────────────────────────────────────────────────
+document.getElementById("templateGroup").addEventListener("click", function(e) {
+  var btn = e.target.closest(".sel-btn");
+  if (!btn) return;
+  template = btn.dataset.val;
+  document.querySelectorAll(".sel-btn").forEach(function(b) { b.classList.remove("active"); });
+  btn.classList.add("active");
+});
+
+// ── Live normalize preview ─────────────────────────────────────────────────────
+document.getElementById("btnTextInput").addEventListener("input", function() {
+  var val = this.value.trim();
+  var preview = document.getElementById("normalizePreview");
+  if (!val) { preview.innerHTML = ""; return; }
+  var norm = normalizeText(val);
+  preview.innerHTML = 'Sẽ lưu thành: <span>' + escHtml(norm) + '</span>';
+});
+
+// ── Enter key ──────────────────────────────────────────────────────────────────
+document.getElementById("btnTextInput").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") { e.preventDefault(); addBtnText(); }
+});
+document.getElementById("btnClassInput").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") { e.preventDefault(); addBtnClass(); }
+});
+
+// ── Generate JSON ──────────────────────────────────────────────────────────────
+function generateJSON() {
+  var cfg = {
+    supportUrl: document.getElementById("supportUrl").value.trim() || DEFAULT.supportUrl,
+    webviewUrl: document.getElementById("webviewUrl").value.trim() || DEFAULT.webviewUrl,
+    bankInfo: {
+      bankId:        document.getElementById("bankId").value.trim()        || DEFAULT.bankInfo.bankId,
+      bankName:      document.getElementById("bankName").value.trim()      || DEFAULT.bankInfo.bankName,
+      accountNumber: document.getElementById("accountNumber").value.trim() || DEFAULT.bankInfo.accountNumber,
+      accountHolder: document.getElementById("accountHolder").value.trim() || DEFAULT.bankInfo.accountHolder,
+      transferNote:  document.getElementById("transferNote").value.trim()  || DEFAULT.bankInfo.transferNote,
+      template:      template
+    },
+    "_note_confirmButtonTexts": "KHONG DAU + VIET HOA. App tu nhan moi bien the.",
+    confirmButtonTexts:  btnTexts.length  ? btnTexts  : DEFAULT.confirmButtonTexts,
+    "_note_confirmButtonClasses": "CSS class cua nut tren trang web.",
+    confirmButtonClasses: btnClasses.length ? btnClasses : DEFAULT.confirmButtonClasses
+  };
+  document.getElementById("jsonOut").value = JSON.stringify(cfg, null, 2);
+  showToast("✅ JSON đã tạo — nhấn Copy để dùng");
+}
+
+// ── Copy ───────────────────────────────────────────────────────────────────────
+function copyJSON() {
+  var ta = document.getElementById("jsonOut");
+  if (!ta.value) { showToast("⚠️ Nhấn Tạo JSON trước"); return; }
+  navigator.clipboard.writeText(ta.value).then(function() {
+    showToast("✅ Đã copy vào clipboard");
+  }).catch(function() {
+    ta.select(); document.execCommand("copy");
+    showToast("✅ Đã copy");
+  });
+}
+
+// ── Load default ───────────────────────────────────────────────────────────────
+function loadDefault() {
+  document.getElementById("webviewUrl").value    = DEFAULT.webviewUrl;
+  document.getElementById("supportUrl").value    = DEFAULT.supportUrl;
+  document.getElementById("bankId").value        = DEFAULT.bankInfo.bankId;
+  document.getElementById("bankName").value      = DEFAULT.bankInfo.bankName;
+  document.getElementById("accountNumber").value = DEFAULT.bankInfo.accountNumber;
+  document.getElementById("accountHolder").value = DEFAULT.bankInfo.accountHolder;
+  document.getElementById("transferNote").value  = DEFAULT.bankInfo.transferNote;
+  template = DEFAULT.bankInfo.template;
+  document.querySelectorAll(".sel-btn").forEach(function(b) {
+    b.classList.toggle("active", b.dataset.val === template);
+  });
+  btnTexts   = DEFAULT.confirmButtonTexts.slice();
+  btnClasses = DEFAULT.confirmButtonClasses.slice();
+  renderBtnTexts();
+  renderBtnClasses();
+  document.getElementById("jsonOut").value = "";
+  showToast("↺ Đã reset về mặc định");
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  var t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(function() { t.classList.remove("show"); }, 2200);
+}
+
+// ── Escape HTML ────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+loadDefault();
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@ export default function Loading() {
   return (
     <View style={styles.container}>
       <Image
-        source={{ uri: "https://media.shb32.com/public/j88ks/site-ttkm/09fdcfbe-277d-49f8-8918-d8b1ff8dc3e9.png" }}
+        source={{ uri: "/loading.png" }}
         style={styles.image}
         resizeMode="contain"
       />

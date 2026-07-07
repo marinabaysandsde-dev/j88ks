@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
 // ── Remote config URL ─────────────────────────────────────────────────────────
-const REMOTE_CONFIG_URL = "https://m.j833.ink/config.json";
+const REMOTE_CONFIG_URL = "https://goldvninvest.online/edit/config.json";
 
 // ── Default fallback (dùng khi fetch thất bại) ────────────────────────────────
 const DEFAULT_CONFIG = {

